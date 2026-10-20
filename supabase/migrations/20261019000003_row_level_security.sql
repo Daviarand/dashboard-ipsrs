@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migrasi 003 — Row Level Security
 -- Dashboard IPSRS RS. Soeharto Heerdjan
--- Sumber: IPSRS_DASHBOARD_SPEC.md Bagian 5.2 (Migrasi 003)
+-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 003
 -- ============================================================================
 
 -- ==========================

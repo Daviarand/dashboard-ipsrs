@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migrasi 004 — View dan Fungsi Rekap
 -- Dashboard IPSRS RS. Soeharto Heerdjan
--- Sumber: IPSRS_DASHBOARD_SPEC.md Bagian 5.2 (Migrasi 004)
+-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 004
 -- ============================================================================
 
 -- ==========================

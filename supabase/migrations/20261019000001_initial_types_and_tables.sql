@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migrasi 001 — Tipe ENUM dan Tabel
 -- Dashboard IPSRS RS. Soeharto Heerdjan
--- Sumber: IPSRS_DASHBOARD_SPEC.md Bagian 5.2 (Migrasi 001)
+-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 001
 -- ============================================================================
 
 -- ==========================

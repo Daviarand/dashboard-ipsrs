@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migrasi 005 — Data Awal (Seed)
 -- Dashboard IPSRS RS. Soeharto Heerdjan
--- Sumber: IPSRS_DASHBOARD_SPEC.md Bagian 5.2 (Migrasi 005)
+-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 005
 -- ============================================================================
 
 -- ==========================

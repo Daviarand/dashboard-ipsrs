@@ -3,7 +3,7 @@
 
 | | |
 |---|---|
-| Versi dokumen | 0.3 |
+| Versi dokumen | 0.7 |
 | Status | Disetujui sebagai acuan awal; dilengkapi bertahap |
 | Sumber | BRD v0.1 + SRS v0.1 (digabung), ditambah tech stack, rancangan database, migrasi penyempurnaan 006, dan RPC aksi atomik |
 | Tech stack | React + TypeScript + Vite, Tailwind CSS, Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
@@ -21,7 +21,9 @@
    - Nilai enum domain memakai istilah Indonesia (`baru`, `laksana`, dll.) karena merupakan istilah bisnis. Label tampilan dipetakan di frontend (Bagian 6.4).
    - **Seluruh teks antarmuka (label, pesan, tombol) dalam bahasa Indonesia.**
 6. ID kebutuhan (FR-xxx, BR-xx, NFR-xx) dipertahankan agar bisa dirujuk di commit dan issue.
-7. Migrasi di `supabase/migrations/` berurutan **001-006**. Perubahan skema berikutnya = **file migrasi baru**; jangan mengedit migrasi yang sudah dijalankan di remote.
+7. Migrasi di `supabase/migrations/` berurutan **001-007**. Perubahan skema berikutnya = **file migrasi baru**; jangan mengedit migrasi yang sudah dijalankan di remote.
+8. **Lingkungan kerja tanpa Docker dan tanpa Supabase CLI.** Database memakai project Supabase cloud; SQL dijalankan manual lewat SQL Editor, Edge Function di-deploy lewat Dashboard. Agent/developer hanya boleh menjalankan perintah Node (npm, tsc, lint, vitest, vite). Jangan menuliskan, meminta, atau menyimpan service role key, secret key, atau password database di kode, repo, maupun log.
+9. Setiap objek baru di schema `public` (tabel, view, fungsi) **wajib** disertai GRANT eksplisit di file migrasi yang sama (lihat Migrasi 007).
 
 ---
 
@@ -167,10 +169,12 @@ stateDiagram-v2
 | FR-AUTH-01 | Login dengan **username** dan kata sandi (Supabase Auth; username dipetakan ke email semu `username@ipsrs.local`). |
 | FR-AUTH-02 | Menu dan data dibatasi per role di frontend **dan** database (RLS). |
 | FR-AUTH-03 | Admin menambah, menonaktifkan, dan mereset kata sandi akun teknisi melalui Edge Function (service role key tidak boleh ada di frontend). |
-| FR-AUTH-04 | Sesi berakhir otomatis setelah tidak aktif. |
+| FR-AUTH-04 | Sesi berakhir otomatis setelah 30 menit tanpa interaksi pengguna. |
 | FR-AUTH-05 | Pengguna nonaktif tidak bisa login dan tidak bisa mengakses data. |
 | FR-AUTH-06 | Sistem menolak menonaktifkan atau menurunkan role admin aktif terakhir (BR-17). |
 | FR-AUTH-07 | Username: huruf kecil, angka, titik, garis bawah, strip; 3-30 karakter. Kata sandi minimal 8 karakter. Pendaftaran mandiri (sign-up) dimatikan di Supabase Auth. |
+| FR-AUTH-08 | Setiap pengguna dapat mengganti kata sandinya sendiri di halaman `/profil` (kata sandi lama tidak diminta; sesi aktif sudah cukup). Lupa kata sandi ditangani admin lewat reset (FR-AUTH-03). |
+| FR-AUTH-09 | Domain email semu untuk login (`username@<domain>`) ditentukan oleh **satu konstanta** (`LOGIN_EMAIL_DOMAIN`, default `ipsrs.local`) di frontend dan Edge Function, agar mudah diganti bila Supabase menolak domain tersebut. |
 
 ### 4.3 Tiket (admin)
 
@@ -305,6 +309,7 @@ stateDiagram-v2
 | NFR-10 | Pembaruan data: refetch saat jendela aktif kembali; halaman `/tugas` dan panel pantauan refetch tiap 60 detik. Supabase Realtime tidak dipakai di versi 1. |
 | NFR-11 | Aksesibilitas dasar: label pada semua input, kontras teks memadai, navigasi keyboard pada form dan dialog. |
 | NFR-12 | Fungsi `rpc_*` dan `f_tickets` hanya dapat dieksekusi role `authenticated`; akses `anon` dicabut. |
+| NFR-13 | Hak akses Data API bersifat eksplisit (Migrasi 007). Objek baru di `public` wajib disertai GRANT; `anon` tidak memiliki hak apa pun. |
 
 ---
 
@@ -336,6 +341,20 @@ Fungsi aksi (RPC, Migrasi 006): `rpc_change_status`, `rpc_finish_ticket`, `rpc_r
 ### 5.2 Skema SQL (migrasi, urutan eksekusi)
 
 > Simpan sebagai migrasi berurutan di `supabase/migrations/`. Pecah per bagian di bawah.
+
+**Daftar file migrasi (nama file wajib persis):**
+
+| Bagian | File | Isi |
+|---|---|---|
+| Migrasi 001 | `20261019000001_initial_types_and_tables.sql` | ENUM, seluruh tabel, index, constraint |
+| Migrasi 002 | `20261019000002_functions_and_triggers.sql` | Fungsi bantu, trigger, audit log |
+| Migrasi 003 | `20261019000003_row_level_security.sql` | Aktivasi RLS, seluruh policy, bucket `ticket-forms`, policy storage |
+| Migrasi 004 | `20261019000004_views_and_recap_functions.sql` | `v_tickets`, `v_materials`, `f_tickets`, 8 fungsi `rpc_*` rekap |
+| Migrasi 005 | `20261019000005_seed_initial_data.sql` | Seed `app_settings`, `failure_reasons`, `damage_types`; instruksi admin pertama (sebagai komentar SQL) |
+| Migrasi 006 | `20261019000006_hardening_and_rpc_actions.sql` | Perbaikan, validasi tambahan, 3 RPC aksi, pencabutan akses `anon` pada fungsi |
+| Migrasi 007 | `20261019000007_data_api_grants.sql` | GRANT eksplisit Data API |
+
+Aturan pembuatan file: isi file = isi blok SQL pada bagian terkait **persis**, diawali komentar header `-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 00X`. Jika menemukan kesalahan sintaks nyata, perbaiki secara minimal dan catat di Changelog. Setiap file harus dapat dijalankan sendiri-sendiri berurutan di SQL Editor.
 
 #### Migrasi 001 — Tipe dan tabel
 
@@ -1382,6 +1401,62 @@ end $$;
 
 Catatan Migrasi 006: seluruh pelanggaran aturan dilempar sebagai `raise exception` berbahasa Indonesia; frontend memetakannya lewat Bagian 6.8. Jika `username` akun yang sudah ada tidak memenuhi format (huruf kecil), perbaiki datanya sebelum migrasi dijalankan.
 
+Migrasi 006 juga mengganti `f_tickets` menjadi fungsi `plpgsql` yang melempar exception jika pemanggil bukan admin. Versi SQL sebelumnya hanya mengembalikan hasil kosong untuk teknisi, sehingga RPC rekap tetap dapat dipanggil tanpa menghasilkan pesan penolakan yang jelas.
+
+#### Migrasi 007 — Hak akses Data API (`20261019000007_data_api_grants.sql`)
+
+> **Wajib.** Sejak 30 Mei 2026 (proyek baru) dan 30 Oktober 2026 (semua proyek), Supabase **tidak lagi memberi hak akses otomatis** pada tabel, view, dan fungsi baru di schema `public`. Tanpa GRANT eksplisit, aplikasi menerima error `42501 permission denied for table` walaupun RLS dan policy sudah benar. GRANT hanya membuka pintu; **RLS tetap yang menentukan baris mana yang boleh diakses**.
+
+```sql
+-- Bersihkan hak akses lama untuk anon (proyek lama bisa memiliki default lama)
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+
+-- Tabel: hanya operasi yang memang dipakai aplikasi (dibatasi lagi oleh RLS)
+grant select, update on public.profiles to authenticated;
+grant select, insert, update on public.rooms to authenticated;
+grant select, insert, update on public.damage_types to authenticated;
+grant select, insert, update on public.failure_reasons to authenticated;
+grant select, update on public.app_settings to authenticated;
+grant select, insert, update on public.materials to authenticated;
+grant select, insert on public.stock_movements to authenticated;
+grant select, insert, update on public.tickets to authenticated;
+grant select, insert, update on public.ticket_assignments to authenticated;
+grant select, insert on public.ticket_notes to authenticated;
+grant select on public.ticket_status_history to authenticated;
+grant select, insert, delete on public.ticket_attachments to authenticated;
+grant select on public.activity_logs to authenticated;
+-- ticket_counters: sengaja tanpa grant (hanya diakses fungsi security definer)
+
+-- View
+grant select on public.v_tickets, public.v_materials to authenticated;
+
+-- Fungsi bantu yang dipakai policy RLS
+-- (rpc_* dan f_tickets sudah diberi grant di Migrasi 006 bagian 11)
+grant execute on function public.current_role_name() to authenticated;
+grant execute on function public.is_admin() to authenticated;
+grant execute on function public.is_teknisi() to authenticated;
+grant execute on function public.is_assigned(uuid) to authenticated;
+
+-- service_role (dipakai Edge Function admin-manage-users)
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+```
+
+Aturan ke depan: **setiap migrasi yang membuat tabel, view, atau fungsi baru wajib menyertakan GRANT eksplisit di file yang sama.**
+
+Verifikasi setelah dijalankan:
+
+```sql
+-- anon tidak boleh punya hak apa pun; authenticated sesuai daftar di atas
+select grantee, table_name, string_agg(privilege_type, ', ' order by privilege_type) as privileges
+from information_schema.role_table_grants
+where table_schema = 'public' and grantee in ('anon', 'authenticated')
+group by grantee, table_name
+order by grantee, table_name;
+```
+
 ### 5.3 Edge Function `admin-manage-users`
 
 Dijalankan dengan service role key (hanya di server Supabase). Alur:
@@ -1392,6 +1467,16 @@ Dijalankan dengan service role key (hanya di server Supabase). Alur:
 5. Username unik; format sesuai `profiles_username_format` (huruf kecil, angka, `.`, `_`, `-`; 3-30 karakter); kata sandi minimal 8 karakter.
 6. Tolak menonaktifkan atau menurunkan admin aktif terakhir (database juga menjaganya lewat trigger `profiles_guard_last_admin`).
 7. Atur CORS hanya untuk origin aplikasi; jangan mengembalikan detail error internal ke klien.
+
+**Kontrak request/response** (`POST`, body JSON, header `Authorization: Bearer <JWT pengguna>`):
+
+| `action` | Field request | Hasil sukses |
+|---|---|---|
+| `create` | `username`, `full_name`, `password` (role selalu `teknisi`) | `{ "ok": true, "data": { "id": "<uuid>", "username": "..." } }` |
+| `reset_password` | `user_id`, `new_password` | `{ "ok": true }` |
+| `set_active` | `user_id`, `is_active` (boolean) | `{ "ok": true }` |
+
+Galat: `{ "ok": false, "error": "<pesan Indonesia>" }` dengan status 400 (validasi), 401 (tidak login), 403 (bukan admin), 409 (username sudah dipakai), 500 (lainnya). Admin tambahan (role `admin`) dibuat manual lewat SQL oleh pemilik sistem, bukan lewat aplikasi.
 
 ### 5.4 Penyimpanan berkas
 
@@ -1446,8 +1531,12 @@ src/
   lib/            # supabase client, format tanggal WIB, util
   types/
 supabase/
-  migrations/
-  functions/admin-manage-users/
+  migrations/                  # 001-007
+  functions/admin-manage-users/index.ts   # satu file mandiri (ditempel ke editor Dashboard)
+  tests/smoke.sql              # uji manual di SQL Editor
+  seed-dev.sql                 # data contoh pengembangan
+docs/
+  SETUP_SUPABASE_CLOUD.md      # panduan setup tanpa Docker/CLI
 ```
 
 ### 6.3 Rute
@@ -1465,6 +1554,7 @@ supabase/
 | `/master/ruangan` `/master/jenis-kerusakan` `/master/alasan-gagal` | admin (kelola), teknisi (baca bila perlu) | CRUD |
 | `/master/pengguna` | admin | Akun teknisi |
 | `/log` | admin | Log aktivitas |
+| `/profil` | admin, teknisi | Ganti kata sandi sendiri |
 
 Guard rute: berdasarkan `profiles.role`; pengguna nonaktif otomatis logout.
 
@@ -1597,6 +1687,43 @@ Seluruh skenario 1-18 harus lulus sebelum UAT.
 
 UAT bersama admin dan tim teknis memakai data nyata.
 
+### 8.2 Berkas uji dan seed (dijalankan manual di SQL Editor)
+
+**`supabase/tests/smoke.sql`**
+- Dibungkus `begin; ... rollback;` agar tidak meninggalkan data.
+- Mengambil 1 admin aktif dan 1 teknisi aktif dari `profiles`; bila belum ada, cetak `notice` jelas lalu berhenti.
+- Setiap tes mencetak `LULUS: ...` atau `GAGAL: ...` lewat `raise notice`.
+- Pola meniru pengguna (dijalankan sebagai `postgres` di SQL Editor):
+  ```sql
+  select set_config('request.jwt.claims',
+    json_build_object('sub', '<UUID pengguna>', 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  -- pernyataan yang diuji
+  reset role;
+  ```
+- Tes yang HARUS ditolak dibungkus blok `do $$ ... exception when others then raise notice 'LULUS: ...' ... end $$`. Pastikan ada baris target, sebab `UPDATE`/`DELETE` yang tidak mengenai baris tidak memicu error.
+- Penolakan oleh RLS pada `SELECT`/`UPDATE`/`DELETE` tidak berupa error, melainkan **0 baris**: ujilah dengan jumlah baris. Pelanggaran `WITH CHECK` pada `INSERT` berupa error `42501`.
+- Cakup minimal: klasifikasi laksana/gagal, alasan gagal wajib, transisi status tidak valid, penugasan pertama → ditugaskan, stok keluar melebihi stok, koreksi tanpa catatan, tabel append-only, `current_stock` tidak bisa diubah langsung, isolasi RLS teknisi (hanya tiket miliknya, tidak bisa ubah status, tidak bisa memanggil rekap), `rpc_finish_ticket` atomik, `rpc_reopen_ticket` tanpa alasan, admin aktif terakhir, waktu lapor di masa depan, `anon` tidak punya akses tabel maupun `rpc_*`.
+
+**`supabase/seed-dev.sql`** (khusus pengembangan)
+- Mengambil id admin dan teknisi yang **sudah ada** di `profiles`; tidak membuat akun Auth.
+- Isi: sekitar 15 ruangan dengan nama generik/fiktif, beberapa material dengan stok masuk awal, dan sekitar 30 tiket dengan variasi status, prioritas, laksana, dan gagal laksana.
+- Karena dijalankan sebagai `postgres` (tanpa `auth.uid()`), isi kolom `created_by`, `author_id`, dan `created_by` pada `stock_movements` secara **eksplisit**.
+- Ikuti urutan yang diterima trigger: insert tiket (status otomatis `baru`) → insert penugasan teknisi (status otomatis `ditugaskan`; penugasan harus **sebelum** tiket selesai) → `update` status ke `dikerjakan`/`menunggu_material` → `update` ke `selesai` dengan `started_at`, `finished_at`, `reporter_verified`, dan alasan gagal bila durasi > 24 jam. Stok masuk harus ada sebelum stok keluar.
+- Waktu lapor dan waktu selesai tidak boleh di masa depan; sebar tanggal ke beberapa minggu terakhir agar filter tanggal dashboard dapat diuji.
+- Beri komentar peringatan agar tidak dijalankan dua kali (atau buat idempoten).
+
+### 8.3 Daftar periksa sebelum dipakai (go-live)
+
+- [ ] Migrasi 001-007 sukses berurutan; query verifikasi 11.3 sesuai hasil yang diharapkan.
+- [ ] Sign-up publik dimatikan; kata sandi minimal 8 karakter.
+- [ ] Admin pertama dibuat; Edge Function ter-deploy; akun 4 teknisi dibuat.
+- [ ] `smoke.sql` tidak mencetak satupun `GAGAL`.
+- [ ] Skenario 1-18 lulus (skenario 6 dan 15 diuji dengan akun sungguhan).
+- [ ] `tsc`, lint, tes, dan build bersih.
+- [ ] Backup dan prosedur pemulihan sudah disepakati (NFR-05).
+- [ ] Data seed contoh dihapus atau bukan di database produksi.
+
 ---
 
 ## 9. Risiko dan Mitigasi
@@ -1612,6 +1739,7 @@ UAT bersama admin dan tim teknis memakai data nyata.
 | Data RS di cloud | Tentukan kebijakan hosting sebelum produksi (Bagian 12) |
 | Laporan yang sama diinput dua kali | Peringatan potensi duplikat (FR-TKT-12); tiket ganda dibatalkan dengan alasan |
 | Dua admin mengedit bersamaan | Pencegahan konflik edit (FR-TKT-11) |
+| Tabel/fungsi baru tidak terjangkau Data API (`42501`) | GRANT eksplisit wajib di setiap migrasi (Migrasi 007, NFR-13) |
 
 ---
 
@@ -1635,10 +1763,79 @@ UAT bersama admin dan tim teknis memakai data nyata.
 - Backup: jadwal otomatis database dan ekspor berkala bucket berkas; uji pemulihan sebelum go-live.
 - Paket Supabase gratis menjeda project yang tidak aktif; untuk produksi gunakan paket berbayar atau self-host.
 - Supabase Auth: **matikan sign-up publik**, atur kata sandi minimal 8 karakter, atur masa berlaku sesi. Konfirmasi email tidak dipakai karena akun dibuat admin.
-- Jalankan migrasi 001-006 berurutan dengan `supabase db push`.
+- Jalankan migrasi **001-007** berurutan. Dengan CLI: `supabase db push`. Tanpa CLI/Docker: tempel dan jalankan satu file per eksekusi di Dashboard → SQL Editor.
+- Jika SQL Editor menampilkan peringatan tentang tabel tanpa RLS saat menjalankan migrasi 001, pilih opsi yang **mengaktifkan RLS** (hasil akhirnya sama dengan Migrasi 003). Semua tabel `public` harus ber-RLS setelah migrasi selesai.
+- Error `42501 permission denied for table` di aplikasi berarti GRANT Migrasi 007 belum dijalankan atau tabel baru belum diberi GRANT.
 - Sebelum go-live pastikan semua tabel `public` ber-RLS; query berikut harus mengembalikan nol baris: `select tablename from pg_tables where schemaname = 'public' and not rowsecurity;`
 - Bila memakai cloud, pilih region terdekat (misalnya Singapura) sesuai kebijakan RS.
 - Service role key hanya sebagai secret Edge Function; jangan pernah di repo atau frontend.
+
+### 11.1 Konfigurasi lingkungan
+
+| Variabel | Lokasi | Keterangan |
+|---|---|---|
+| `VITE_SUPABASE_URL` | `.env` frontend | Project URL |
+| `VITE_SUPABASE_ANON_KEY` | `.env` frontend | Anon key **atau** publishable key (`sb_publishable_...`). Bukan secret/service role key |
+| `VITE_LOGIN_EMAIL_DOMAIN` | `.env` frontend (opsional) | Default `ipsrs.local` (FR-AUTH-09) |
+| `ALLOWED_ORIGIN` | Secret Edge Function (opsional) | Origin aplikasi untuk CORS |
+| `LOGIN_EMAIL_DOMAIN` | Secret Edge Function (opsional) | Harus sama dengan nilai di frontend |
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan `SUPABASE_SERVICE_ROLE_KEY` tersedia otomatis di lingkungan Edge Function.
+
+### 11.2 Setup Supabase cloud tanpa Docker/CLI (urutan)
+
+Letak menu dashboard dapat sedikit berbeda; cari berdasarkan nama.
+
+1. **Buat project** di supabase.com, pilih region terdekat, simpan password database.
+2. **Authentication → Sign In / Providers:** matikan sign-up publik ("Allow new users to sign up"), atur kata sandi minimal 8 karakter.
+3. **Jalankan migrasi 001 → 007 berurutan** di SQL Editor (New query → tempel → Run), satu file per eksekusi. Jika muncul peringatan tabel tanpa RLS pada migrasi 001, pilih opsi yang mengaktifkan RLS. Jika ada error, **berhenti** dan perbaiki sebelum lanjut.
+4. **Verifikasi** dengan query pada 11.3.
+5. **Buat admin pertama:** Authentication → Users → Add user → Create new user, email `admin@ipsrs.local`, password kuat, centang Auto Confirm User. Salin User UID, lalu jalankan:
+   ```sql
+   insert into public.profiles (id, username, full_name, role)
+   values ('<UUID>', 'admin', 'Admin IPSRS', 'admin');
+   ```
+   Jika dashboard menolak domain email, ganti `LOGIN_EMAIL_DOMAIN` (FR-AUTH-09) di semua tempat.
+6. **Isi `.env`** dari Project Settings → API Keys (atau tombol Connect).
+7. **Deploy Edge Function:** Edge Functions → Deploy a new function → Via Editor, nama `admin-manage-users`, tempel `supabase/functions/admin-manage-users/index.ts`, Deploy; biarkan verifikasi JWT aktif.
+8. **Jalankan aplikasi** (`npm install`, `npm run dev`), login sebagai admin, buat akun teknisi lewat halaman Pengguna.
+9. **Jalankan `supabase/tests/smoke.sql`** dan (untuk pengembangan) `supabase/seed-dev.sql` di SQL Editor.
+
+### 11.3 Query verifikasi pasca-migrasi
+
+```sql
+-- a. Semua tabel ber-RLS: tidak boleh ada baris (14 tabel harus rowsecurity = true)
+select tablename from pg_tables where schemaname = 'public' and not rowsecurity;
+
+-- b. Jumlah tabel public = 14
+select count(*) from pg_tables where schemaname = 'public';
+
+-- c. Jumlah policy di schema public = 32
+select count(*) from pg_policies where schemaname = 'public';
+
+-- d. Fungsi rpc_* = 11 (8 rekap + 3 aksi)
+select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and proname like 'rpc\_%' order by proname;
+
+-- e. Bucket ticket-forms ada dan privat (public = false)
+select id, public from storage.buckets;
+
+-- f. Seed: sla_hours = 24, sla_warning_hours = 20
+select * from public.app_settings order by key;
+
+-- g. Hak akses: anon tidak muncul sama sekali
+select grantee, table_name, string_agg(privilege_type, ', ' order by privilege_type) as privileges
+from information_schema.role_table_grants
+where table_schema = 'public' and grantee in ('anon', 'authenticated')
+group by grantee, table_name order by grantee, table_name;
+```
+
+### 11.4 Kerja tanpa Docker/CLI: konsekuensi untuk developer/agent
+
+- Tidak ada `supabase gen types`: tulis `src/types/database.ts` **manual** (tabel, view, enum, signature RPC), kompatibel dengan `createClient<Database>()`, dan beri komentar bahwa file ini dapat diganti hasil generate resmi.
+- Developer/agent **tidak dapat menjalankan database**; skenario uji yang butuh database ditandai "perlu diuji pengguna setelah migrasi dijalankan".
+- Seluruh SQL tambahan (smoke, seed) ditulis agar dapat ditempel langsung ke SQL Editor.
+- Panduan langkah untuk pengguna non-teknis ditulis di `docs/SETUP_SUPABASE_CLOUD.md`, berdasarkan 11.2 dan 11.3.
 
 ---
 
@@ -1658,6 +1855,8 @@ UAT bersama admin dan tim teknis memakai data nyata.
 | 10 | Notifikasi penugasan ke teknisi (WA/push) dan pengingat mendekati 24 jam. **Di luar lingkup v1** | Fase lanjut |
 | 11 | Format laporan resmi/cetak rekap (kop RS, tanda tangan pejabat) | Ekspor |
 | 12 | Apakah admin boleh menyelesaikan tiket yang tidak pernah berstatus Dikerjakan (kini boleh dari Ditugaskan) | Alur status |
+| 13 | Apakah Supabase menerima domain email semu `ipsrs.local` untuk pembuatan user lewat Dashboard/Auth Admin API | `LOGIN_EMAIL_DOMAIN` |
+| 14 | Jenis API key yang dipakai (anon vs publishable) dan perilakunya pada Edge Function | Konfigurasi 11.1 |
 
 ---
 
@@ -1668,3 +1867,7 @@ UAT bersama admin dan tim teknis memakai data nyata.
 | 0.1 | 2026-10-19 | BRD dan SRS awal |
 | 0.2 | 2026-10-19 | Penggabungan BRD+SRS, tech stack, rancangan database (migrasi 001-005), RLS, fungsi rekap, struktur frontend |
 | 0.3 | 2026-10-20 | Migrasi 006: perbaikan `audit_row` (tabel ber-PK `key`), kebijakan stok teknisi, validasi waktu dan penugasan, penjaga admin terakhir, format username, RPC atomik `rpc_finish_ticket`/`rpc_change_status`/`rpc_reopen_ticket`, pencabutan akses anon. Tambahan: diagram status, BR-15..18, FR-AUTH-06/07, FR-TKT-09..12, FR-STS-10..12, NFR-10..12, pemetaan error 6.8, definisi metrik 7.2, skenario uji 13-18, pengaturan Auth di deployment |
+| 0.4 | 2026-10-20 | Migrasi 007 (GRANT eksplisit Data API sesuai perubahan kebijakan Supabase: tabel `public` tidak lagi terekspos otomatis), NFR-13, catatan peringatan RLS di SQL Editor, urutan migrasi menjadi 001-007 |
+| 0.5 | 2026-10-20 | Daftar file migrasi 001-007 dengan nama persis dan aturan pembuatan; kontrak request/response Edge Function; FR-AUTH-08/09 (ganti kata sandi sendiri, konstanta domain email); rute `/profil`; spesifikasi `smoke.sql` dan `seed-dev.sql` (8.2); daftar periksa go-live (8.3); konfigurasi lingkungan, setup cloud tanpa CLI, query verifikasi, dan catatan kerja tanpa Docker (11.1-11.4); struktur folder diperbarui |
+| 0.6 | 2026-10-20 | `f_tickets` secara eksplisit menolak pemanggil non-admin agar teknisi tidak dapat menjalankan RPC rekap yang hanya menghasilkan data kosong; melengkapi pembatasan akses rekap pada skenario uji 6 dan 15 |
+| 0.7 | 2026-10-20 | Menetapkan batas sesi tidak aktif 30 menit untuk FR-AUTH-04; aplikasi logout otomatis setelah tidak ada interaksi pengguna |
