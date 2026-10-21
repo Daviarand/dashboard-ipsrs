@@ -3,7 +3,7 @@
 
 | | |
 |---|---|
-| Versi dokumen | 0.7 |
+| Versi dokumen | 0.8 |
 | Status | Disetujui sebagai acuan awal; dilengkapi bertahap |
 | Sumber | BRD v0.1 + SRS v0.1 (digabung), ditambah tech stack, rancangan database, migrasi penyempurnaan 006, dan RPC aksi atomik |
 | Tech stack | React + TypeScript + Vite, Tailwind CSS, Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
@@ -21,7 +21,7 @@
    - Nilai enum domain memakai istilah Indonesia (`baru`, `laksana`, dll.) karena merupakan istilah bisnis. Label tampilan dipetakan di frontend (Bagian 6.4).
    - **Seluruh teks antarmuka (label, pesan, tombol) dalam bahasa Indonesia.**
 6. ID kebutuhan (FR-xxx, BR-xx, NFR-xx) dipertahankan agar bisa dirujuk di commit dan issue.
-7. Migrasi di `supabase/migrations/` berurutan **001-007**. Perubahan skema berikutnya = **file migrasi baru**; jangan mengedit migrasi yang sudah dijalankan di remote.
+7. Migrasi di `supabase/migrations/` berurutan **001-008**. Perubahan skema berikutnya = **file migrasi baru**; jangan mengedit migrasi yang sudah dijalankan di remote.
 8. **Lingkungan kerja tanpa Docker dan tanpa Supabase CLI.** Database memakai project Supabase cloud; SQL dijalankan manual lewat SQL Editor, Edge Function di-deploy lewat Dashboard. Agent/developer hanya boleh menjalankan perintah Node (npm, tsc, lint, vitest, vite). Jangan menuliskan, meminta, atau menyimpan service role key, secret key, atau password database di kode, repo, maupun log.
 9. Setiap objek baru di schema `public` (tabel, view, fungsi) **wajib** disertai GRANT eksplisit di file migrasi yang sama (lihat Migrasi 007).
 
@@ -192,6 +192,7 @@ stateDiagram-v2
 | FR-TKT-10 | Daftar tiket memakai paginasi sisi server (default 20 per halaman), urut waktu lapor terbaru; pencarian teks pada nomor tiket, nama pelapor, dan deskripsi. |
 | FR-TKT-11 | Pencegahan konflik edit: pembaruan tiket menyertakan `updated_at` terakhir yang dilihat; bila sudah berubah, tampilkan pesan agar memuat ulang. |
 | FR-TKT-12 | Saat membuat tiket, tampilkan peringatan (tidak memblokir) bila sudah ada tiket berjalan untuk ruangan dan jenis kerusakan yang sama. |
+| FR-TKT-13 | Admin dapat mencatat tingkat kesulitan tiket secara opsional: `low`, `medium`, atau `hard`; tampilkan pada daftar, detail, dan lembar cetak tiket. |
 
 ### 4.4 Penugasan
 
@@ -305,7 +306,7 @@ stateDiagram-v2
 | NFR-06 | Kegunaan: admin dapat membuat tiket < 1 menit setelah terbiasa; layar teknisi nyaman di ponsel. |
 | NFR-07 | Browser modern (Chrome, Edge, Firefox). |
 | NFR-08 | Seluruh waktu disimpan UTC (`timestamptz`) dan **ditampilkan/diinput dalam WIB (Asia/Jakarta)**. |
-| NFR-09 | Skala kecil (sekitar 2-3 tiket/hari, sekitar 4 teknisi); jangan over-engineering. |
+| NFR-09 | Skala kecil (sekitar 5-7 tiket/hari, sekitar 4 teknisi); jangan over-engineering. |
 | NFR-10 | Pembaruan data: refetch saat jendela aktif kembali; halaman `/tugas` dan panel pantauan refetch tiap 60 detik. Supabase Realtime tidak dipakai di versi 1. |
 | NFR-11 | Aksesibilitas dasar: label pada semua input, kontras teks memadai, navigasi keyboard pada form dan dialog. |
 | NFR-12 | Fungsi `rpc_*` dan `f_tickets` hanya dapat dieksekusi role `authenticated`; akses `anon` dicabut. |
@@ -353,6 +354,7 @@ Fungsi aksi (RPC, Migrasi 006): `rpc_change_status`, `rpc_finish_ticket`, `rpc_r
 | Migrasi 005 | `20261019000005_seed_initial_data.sql` | Seed `app_settings`, `failure_reasons`, `damage_types`; instruksi admin pertama (sebagai komentar SQL) |
 | Migrasi 006 | `20261019000006_hardening_and_rpc_actions.sql` | Perbaikan, validasi tambahan, 3 RPC aksi, pencabutan akses `anon` pada fungsi |
 | Migrasi 007 | `20261019000007_data_api_grants.sql` | GRANT eksplisit Data API |
+| Migrasi 008 | `20261020000008_ticket_difficulty.sql` | Enum dan kolom tingkat kesulitan tiket; pembaruan view `v_tickets` |
 
 Aturan pembuatan file: isi file = isi blok SQL pada bagian terkait **persis**, diawali komentar header `-- Sumber: IPSRS_DASHBOARD_SPEC.md §5.2 Migrasi 00X`. Jika menemukan kesalahan sintaks nyata, perbaiki secara minimal dan catat di Changelog. Setiap file harus dapat dijalankan sendiri-sendiri berurutan di SQL Editor.
 
@@ -1457,6 +1459,10 @@ group by grantee, table_name
 order by grantee, table_name;
 ```
 
+#### Migrasi 008 — Tingkat kesulitan tiket (`20261020000008_ticket_difficulty.sql`)
+
+Menambahkan enum `ticket_difficulty` (`low`, `medium`, `hard`) dan kolom nullable `tickets.difficulty`, lalu menambahkan nilainya ke akhir kolom view `v_tickets` agar kompatibel dengan kolom yang sudah ada. Hak `USAGE` enum diberikan kepada `authenticated` dan `service_role`; migrasi juga meminta PostgREST memuat ulang schema.
+
 ### 5.3 Edge Function `admin-manage-users`
 
 Dijalankan dengan service role key (hanya di server Supabase). Alur:
@@ -1531,7 +1537,7 @@ src/
   lib/            # supabase client, format tanggal WIB, util
   types/
 supabase/
-  migrations/                  # 001-007
+  migrations/                  # 001-008
   functions/admin-manage-users/index.ts   # satu file mandiri (ditempel ke editor Dashboard)
   tests/smoke.sql              # uji manual di SQL Editor
   seed-dev.sql                 # data contoh pengembangan
@@ -1574,7 +1580,7 @@ Guard rute: berdasarkan `profiles.role`; pengguna nonaktif otomatis logout.
 
 ### 6.5 Formulir di UI
 
-**Buat tiket (admin):** ruangan (select dari master aktif), nama pelapor, waktu lapor (datetime, default sekarang, WIB), jenis kerusakan, prioritas, deskripsi kendala, petugas (multi-select teknisi aktif + pilih utama), catatan awal. Tampilkan peringatan potensi duplikat (FR-TKT-12).
+**Buat tiket (admin):** ruangan (select dari master aktif), nama pelapor, waktu lapor (datetime, default sekarang, WIB), jenis kerusakan, prioritas, tingkat kesulitan opsional (low/medium/hard), deskripsi kendala, petugas (multi-select teknisi aktif + pilih utama), catatan awal. Tampilkan peringatan potensi duplikat (FR-TKT-12).
 
 **Formulir selesai (admin):** waktu mulai, waktu selesai, tindakan yang dilakukan, verifikasi pelapor (sudah/belum ditandatangani), nama penandatangan, material terpakai (baris dinamis: material + jumlah), unggah foto/PDF. Jika hasil Gagal Laksana (ditampilkan otomatis dari input waktu): alasan wajib, nama vendor dan keterangan opsional. Material yang sudah tercatat pada tiket tampil hanya-baca; baris dinamis hanya untuk pemakaian baru (FR-STS-12). Simpan memakai `rpc_finish_ticket`, lalu unggah berkas.
 
@@ -1682,8 +1688,9 @@ Skenario minimal:
 16. Penyelesaian tiket dengan material melebihi stok gagal total: tiket tetap tidak selesai dan stok tidak berubah (atomik).
 17. Dua admin mengedit tiket yang sama: yang kedua mendapat pesan konflik.
 18. Waktu lapor di masa depan dan waktu mulai sebelum waktu lapor ditolak.
+19. Tingkat kesulitan tiket menerima low/medium/hard, boleh dikosongkan, dan tampil pada daftar, detail, serta lembar cetak.
 
-Seluruh skenario 1-18 harus lulus sebelum UAT.
+Seluruh skenario 1-19 harus lulus sebelum UAT.
 
 UAT bersama admin dan tim teknis memakai data nyata.
 
@@ -1715,7 +1722,7 @@ UAT bersama admin dan tim teknis memakai data nyata.
 
 ### 8.3 Daftar periksa sebelum dipakai (go-live)
 
-- [ ] Migrasi 001-007 sukses berurutan; query verifikasi 11.3 sesuai hasil yang diharapkan.
+- [ ] Migrasi 001-008 sukses berurutan; query verifikasi 11.3 sesuai hasil yang diharapkan.
 - [ ] Sign-up publik dimatikan; kata sandi minimal 8 karakter.
 - [ ] Admin pertama dibuat; Edge Function ter-deploy; akun 4 teknisi dibuat.
 - [ ] `smoke.sql` tidak mencetak satupun `GAGAL`.
@@ -1763,7 +1770,7 @@ UAT bersama admin dan tim teknis memakai data nyata.
 - Backup: jadwal otomatis database dan ekspor berkala bucket berkas; uji pemulihan sebelum go-live.
 - Paket Supabase gratis menjeda project yang tidak aktif; untuk produksi gunakan paket berbayar atau self-host.
 - Supabase Auth: **matikan sign-up publik**, atur kata sandi minimal 8 karakter, atur masa berlaku sesi. Konfirmasi email tidak dipakai karena akun dibuat admin.
-- Jalankan migrasi **001-007** berurutan. Dengan CLI: `supabase db push`. Tanpa CLI/Docker: tempel dan jalankan satu file per eksekusi di Dashboard → SQL Editor.
+- Jalankan migrasi **001-008** berurutan. Dengan CLI: `supabase db push`. Tanpa CLI/Docker: tempel dan jalankan satu file per eksekusi di Dashboard → SQL Editor.
 - Jika SQL Editor menampilkan peringatan tentang tabel tanpa RLS saat menjalankan migrasi 001, pilih opsi yang **mengaktifkan RLS** (hasil akhirnya sama dengan Migrasi 003). Semua tabel `public` harus ber-RLS setelah migrasi selesai.
 - Error `42501 permission denied for table` di aplikasi berarti GRANT Migrasi 007 belum dijalankan atau tabel baru belum diberi GRANT.
 - Sebelum go-live pastikan semua tabel `public` ber-RLS; query berikut harus mengembalikan nol baris: `select tablename from pg_tables where schemaname = 'public' and not rowsecurity;`
@@ -1846,7 +1853,7 @@ group by grantee, table_name order by grantee, table_name;
 | 1 | Isi formulir fisik tim teknis dan formulir laporan admin | Kolom `tickets` dan formulir selesai bisa bertambah |
 | 2 | Titik awal 24 jam dan perlakuan jam libur (kini: waktu lapor, jam kalender) | Rumus klasifikasi |
 | 3 | Jumlah pasti ruangan dan petugas | Seed data master |
-| 4 | Sistem stok gudang yang ada dan kemungkinan integrasi | Modul persediaan |
+| 4 | Sistem persediaan gudang sudah ada; tunggu daftar lengkap untuk menentukan pemetaan/import dan kemungkinan integrasi | Modul persediaan |
 | 5 | Admin cadangan | Jumlah akun admin |
 | 6 | Hosting: Supabase cloud (pilih region terdekat) atau self-host di server RS | Kepatuhan data |
 | 7 | Retensi berkas dan data | Kebijakan backup/arsip |
@@ -1855,7 +1862,7 @@ group by grantee, table_name order by grantee, table_name;
 | 10 | Notifikasi penugasan ke teknisi (WA/push) dan pengingat mendekati 24 jam. **Di luar lingkup v1** | Fase lanjut |
 | 11 | Format laporan resmi/cetak rekap (kop RS, tanda tangan pejabat) | Ekspor |
 | 12 | Apakah admin boleh menyelesaikan tiket yang tidak pernah berstatus Dikerjakan (kini boleh dari Ditugaskan) | Alur status |
-| 13 | Apakah Supabase menerima domain email semu `ipsrs.local` untuk pembuatan user lewat Dashboard/Auth Admin API | `LOGIN_EMAIL_DOMAIN` |
+| 13 | Verifikasi bahwa Supabase menerima domain email semu `ipsrs.local` saat membuat akun pertama; bila ditolak, ganti domain frontend dan Edge Function secara bersamaan | `LOGIN_EMAIL_DOMAIN` |
 | 14 | Jenis API key yang dipakai (anon vs publishable) dan perilakunya pada Edge Function | Konfigurasi 11.1 |
 
 ---
@@ -1871,3 +1878,4 @@ group by grantee, table_name order by grantee, table_name;
 | 0.5 | 2026-10-20 | Daftar file migrasi 001-007 dengan nama persis dan aturan pembuatan; kontrak request/response Edge Function; FR-AUTH-08/09 (ganti kata sandi sendiri, konstanta domain email); rute `/profil`; spesifikasi `smoke.sql` dan `seed-dev.sql` (8.2); daftar periksa go-live (8.3); konfigurasi lingkungan, setup cloud tanpa CLI, query verifikasi, dan catatan kerja tanpa Docker (11.1-11.4); struktur folder diperbarui |
 | 0.6 | 2026-10-20 | `f_tickets` secara eksplisit menolak pemanggil non-admin agar teknisi tidak dapat menjalankan RPC rekap yang hanya menghasilkan data kosong; melengkapi pembatasan akses rekap pada skenario uji 6 dan 15 |
 | 0.7 | 2026-10-20 | Menetapkan batas sesi tidak aktif 30 menit untuk FR-AUTH-04; aplikasi logout otomatis setelah tidak ada interaksi pengguna |
+| 0.8 | 2026-10-20 | Hasil wawancara mengonfirmasi prioritas, satu tiket untuk satu laporan, multi-teknisi, tanda tangan pelapor, dan volume 5-7 laporan/hari. Menambah FR-TKT-13: tingkat kesulitan opsional low/medium/hard; Migrasi 008 menambahkan kolom dan view terkait. |

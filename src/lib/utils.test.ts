@@ -3,8 +3,9 @@ import { datetimeLocalToUTC, formatDateTimeWIB } from '@/lib/datetime';
 import { formatDuration } from '@/lib/format';
 import { mapDbError } from '@/lib/error';
 import { previewClassification } from '@/lib/classification';
-import { getClassificationLabel, getStatusLabel } from '@/lib/labels';
+import { getClassificationLabel, getDifficultyLabel, getStatusLabel } from '@/lib/labels';
 import { ticketCreateSchema, ticketFinishSchema } from '@/features/tickets/schemas';
+import { loginIdentifierToEmail, usernameToEmail } from '@/lib/utils';
 
 describe('waktu WIB', () => {
   it('menampilkan tengah malam WIB dengan benar dari UTC', () => {
@@ -18,6 +19,16 @@ describe('waktu WIB', () => {
 
   it('menolak nilai waktu yang tidak valid', () => {
     expect(() => datetimeLocalToUTC('2026-02-30T11:20')).toThrow('Waktu tidak valid.');
+  });
+});
+
+describe('login identifier', () => {
+  it('membentuk email internal dari username', () => {
+    expect(usernameToEmail('admin')).toBe('admin@ipsrs.local');
+  });
+
+  it('menerima email yang memang tersimpan di Supabase Auth', () => {
+    expect(loginIdentifierToEmail(' admin@gmail.com ')).toBe('admin@gmail.com');
   });
 });
 
@@ -84,6 +95,30 @@ describe('validasi formulir tiket', () => {
       selectedStaff: [{ userId: '33333333-3333-4333-8333-333333333333', isLead: false }],
     });
     expect(result.success).toBe(false);
+  });
+
+  it('menerima kesulitan opsional dan nilai low, medium, atau hard', () => {
+    const base = {
+      roomId: '11111111-1111-4111-8111-111111111111',
+      reporterName: 'Pelapor',
+      reportedAt: '2026-10-20T10:00',
+      damageTypeId: '22222222-2222-4222-8222-222222222222',
+      priority: 'sedang',
+      description: 'Lampu tidak menyala',
+      initialNote: '',
+      selectedStaff: [],
+    };
+    expect(ticketCreateSchema.safeParse(base).success).toBe(true);
+    for (const difficulty of ['low', 'medium', 'hard']) {
+      expect(ticketCreateSchema.safeParse({ ...base, difficulty }).success).toBe(true);
+    }
+    expect(ticketCreateSchema.safeParse({ ...base, difficulty: 'extreme' }).success).toBe(false);
+  });
+
+  it('menampilkan label tingkat kesulitan dalam Bahasa Indonesia', () => {
+    expect(getDifficultyLabel('low')).toBe('Mudah');
+    expect(getDifficultyLabel('medium')).toBe('Sedang');
+    expect(getDifficultyLabel('hard')).toBe('Sulit');
   });
 
   it('memvalidasi waktu dan tindakan pada formulir selesai', () => {

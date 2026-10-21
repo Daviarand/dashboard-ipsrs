@@ -214,6 +214,7 @@ export type Database = {
           reported_at: string;
           description: string;
           damage_type_id: string;
+          difficulty: Database["public"]["Enums"]["ticket_difficulty"] | null;
           priority: Database["public"]["Enums"]["ticket_priority"];
           status: Database["public"]["Enums"]["ticket_status"];
           started_at: string | null;
@@ -239,6 +240,7 @@ export type Database = {
           reported_at: string;
           description: string;
           damage_type_id: string;
+          difficulty?: Database["public"]["Enums"]["ticket_difficulty"] | null;
           priority?: Database["public"]["Enums"]["ticket_priority"];
           status?: Database["public"]["Enums"]["ticket_status"];
           started_at?: string | null;
@@ -264,6 +266,7 @@ export type Database = {
           reported_at?: string;
           description?: string;
           damage_type_id?: string;
+          difficulty?: Database["public"]["Enums"]["ticket_difficulty"] | null;
           priority?: Database["public"]["Enums"]["ticket_priority"];
           status?: Database["public"]["Enums"]["ticket_status"];
           started_at?: string | null;
@@ -562,6 +565,7 @@ export type Database = {
           description: string;
           damage_type_id: string;
           damage_type_name: string;
+          difficulty: Database["public"]["Enums"]["ticket_difficulty"] | null;
           priority: Database["public"]["Enums"]["ticket_priority"];
           status: Database["public"]["Enums"]["ticket_status"];
           started_at: string | null;
@@ -806,6 +810,7 @@ export type Database = {
         | "selesai"
         | "dibatalkan";
       ticket_classification: "laksana" | "gagal_laksana";
+      ticket_difficulty: "low" | "medium" | "hard";
       stock_movement_type: "masuk" | "keluar" | "koreksi";
     };
 

@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { formatDateTimeWIB } from '@/lib/datetime';
+import { getDifficultyLabel } from '@/lib/labels';
 import type { Database } from '@/types/database';
 
 type Ticket = Database['public']['Views']['v_tickets']['Row'];
@@ -37,6 +38,7 @@ export function TicketPrintPage() {
         <dl className="my-6 grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
           <Entry label="Ruangan" value={ticket.room_name} />
           <Entry label="Prioritas" value={ticket.priority.toUpperCase()} />
+          <Entry label="Tingkat Kesulitan" value={ticket.difficulty ? getDifficultyLabel(ticket.difficulty) : 'Belum ditentukan'} />
           <Entry label="Nama Pelapor" value={ticket.reporter_name} />
           <Entry label="Waktu Lapor (WIB)" value={formatDateTimeWIB(ticket.reported_at)} />
           <Entry label="Jenis Kerusakan" value={ticket.damage_type_name} />

@@ -50,7 +50,7 @@ Karena sistem tiket IPSRS hanya diperuntukkan bagi staf internal (Admin & Teknis
 
 ---
 
-### Langkah 3: Menjalankan Migrasi Database SQL (001 sampai 007)
+### Langkah 3: Menjalankan Migrasi Database SQL (001 sampai 008)
 
 Seluruh rancangan tabel, aturan keamanan, dan fungsi rekap dijalankan melalui fitur **SQL Editor** bawaan Supabase.
 
@@ -67,6 +67,7 @@ Seluruh rancangan tabel, aturan keamanan, dan fungsi rekap dijalankan melalui fi
 | **5** | `supabase/migrations/20261019000005_seed_initial_data.sql` | Mengisi pengaturan awal SLA (24 jam) serta jenis kerusakan dan alasan gagal standar. |
 | **6** | `supabase/migrations/20261019000006_hardening_and_rpc_actions.sql` | Penguatan validasi waktu, pencegahan hapus admin terakhir, dan aksi atomik selesai/buka tiket. |
 | **7** | `supabase/migrations/20261019000007_data_api_grants.sql` | Memberikan izin hak akses eksplisit Data API (mencegah error `42501 permission denied`). |
+| **8** | `supabase/migrations/20261020000008_ticket_difficulty.sql` | Menambahkan tingkat kesulitan opsional ke tiket dan view tiket. |
 
 > [!TIP]
 > **Cara Menjalankan Setiap File:**
@@ -75,6 +76,8 @@ Seluruh rancangan tabel, aturan keamanan, dan fungsi rekap dijalankan melalui fi
 > - Pastikan muncul pesan sukses: `Success. No rows returned` (atau sejenisnya).
 > - **Jika ada peringatan atau error, berhenti terlebih dahulu**, jangan lanjutkan ke file berikutnya sebelum error tersebut diselesaikan.
 > - Jika muncul dialog peringatan *"Tables have no Row Level Security"* saat menjalankan migrasi 001, pilih opsi **Enable RLS** (hasil akhirnya sama dengan Migrasi 003).
+
+Jika migrasi 001–007 sudah pernah berhasil dijalankan di project ini, **jangan jalankan ulang**; jalankan hanya Migrasi 008. Migrasi 008 menambahkan kolom kesulitan pada tiket yang sudah ada tanpa menghapus data lama.
 
 ---
 
@@ -150,6 +153,8 @@ VITE_SUPABASE_URL=https://xyzcompany.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 VITE_LOGIN_EMAIL_DOMAIN=ipsrs.local
 ```
+
+`VITE_LOGIN_EMAIL_DOMAIN` boleh dihilangkan; aplikasi memakai `ipsrs.local` sebagai default. Ini domain email semu internal untuk membentuk alamat login Supabase dari username, bukan alamat email sungguhan dan tidak perlu memiliki inbox. Contohnya username `admin` dipetakan menjadi `admin@ipsrs.local`; pengguna tetap masuk ke aplikasi dengan username `admin`. Karena konfirmasi email dimatikan, tidak perlu menerima email untuk alamat tersebut. Jika Supabase menolak domain itu saat membuat pengguna, ganti domain ini dan samakan dengan secret `LOGIN_EMAIL_DOMAIN` di Edge Function. Setelah mengubah `.env`, hentikan lalu jalankan kembali server `npm run dev`.
 
 ---
 

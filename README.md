@@ -12,7 +12,15 @@ Prasyarat: Node.js 20.19 atau yang lebih baru dan npm.
 npm install
 ```
 
-Salin `.env.example` menjadi `.env`, lalu isi Project URL dan anon/publishable key dari Supabase. Jangan pernah menaruh service role key atau password database di frontend.
+Buat file `.env` di folder utama project, lalu isi Project URL dan anon/publishable key dari Supabase. `VITE_LOGIN_EMAIL_DOMAIN` opsional dan default-nya `ipsrs.local`.
+
+```env
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-or-publishable-key>
+VITE_LOGIN_EMAIL_DOMAIN=ipsrs.local
+```
+
+Jangan pernah menaruh service role key atau password database di frontend.
 
 ```bash
 npm run dev

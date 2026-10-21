@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { PRIORITY_OPTIONS } from '@/lib/labels';
+import { DIFFICULTY_OPTIONS, PRIORITY_OPTIONS } from '@/lib/labels';
 import { datetimeLocalToUTC, utcToDatetimeLocal } from '@/lib/datetime';
 import { mapDbError } from '@/lib/error';
 import { ticketCreateSchema } from '@/features/tickets/schemas';
@@ -30,6 +30,7 @@ export function TicketCreatePage() {
   );
   const [damageTypeId, setDamageTypeId] = useState('');
   const [priority, setPriority] = useState<Priority>('sedang');
+  const [difficulty, setDifficulty] = useState<Database['public']['Enums']['ticket_difficulty'] | ''>('');
   const [description, setDescription] = useState('');
   const [initialNote, setInitialNote] = useState('');
 
@@ -128,6 +129,7 @@ export function TicketCreatePage() {
         reportedAt: reportedAtLocal,
         damageTypeId,
         priority,
+        difficulty: difficulty || null,
         description,
         initialNote,
         selectedStaff,
@@ -149,6 +151,7 @@ export function TicketCreatePage() {
           description: parsed.data.description,
           damage_type_id: damageTypeId,
           priority,
+          difficulty: parsed.data.difficulty ?? null,
           created_by: profile?.id,
         })
         .select()
@@ -332,6 +335,18 @@ export function TicketCreatePage() {
                     <option key={d.id} value={d.id}>
                       {d.name}
                     </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Tingkat Kesulitan <span className="text-slate-400">(opsional)</span>
+                </label>
+                <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}>
+                  <option value="">Belum ditentukan</option>
+                  {DIFFICULTY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </Select>
               </div>

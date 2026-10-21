@@ -6,6 +6,7 @@ export const ticketCreateSchema = z.object({
   reportedAt: z.string().min(1, 'Waktu lapor wajib diisi.'),
   damageTypeId: z.string().uuid('Jenis kerusakan wajib dipilih.'),
   priority: z.enum(['urgent', 'tinggi', 'sedang', 'rendah']),
+  difficulty: z.enum(['low', 'medium', 'hard']).nullable().optional(),
   description: z.string().trim().min(1, 'Deskripsi kendala wajib diisi.'),
   initialNote: z.string(),
   selectedStaff: z.array(z.object({
@@ -30,5 +31,6 @@ export const ticketEditSchema = z.object({
   reportedAt: z.string().min(1, 'Waktu lapor wajib diisi.'),
   damageTypeId: z.string().uuid('Jenis kerusakan wajib dipilih.'),
   priority: z.enum(['urgent', 'tinggi', 'sedang', 'rendah']),
+  difficulty: z.enum(['low', 'medium', 'hard']).nullable().optional(),
   description: z.string().trim().min(1, 'Deskripsi kendala wajib diisi.'),
 });

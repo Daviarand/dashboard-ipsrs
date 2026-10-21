@@ -81,11 +81,11 @@ export function LoginPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Username
+                  Username atau email
                 </label>
                 <Input
                   {...register('username')}
-                  placeholder="admin atau username teknisi"
+                  placeholder="admin atau email akun"
                   autoComplete="username"
                   autoFocus
                   error={errors.username?.message}

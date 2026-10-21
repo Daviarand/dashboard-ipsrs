@@ -52,6 +52,25 @@ export function getPriorityColor(priority: Enums<'ticket_priority'>): string {
   return PRIORITY_COLORS[priority];
 }
 
+// ─── Difficulty ─────────────────────────────────────────────────────
+
+const DIFFICULTY_LABELS: Record<Enums<'ticket_difficulty'>, string> = {
+  low: 'Mudah',
+  medium: 'Sedang',
+  hard: 'Sulit',
+} as const;
+
+export function getDifficultyLabel(difficulty: Enums<'ticket_difficulty'>): string {
+  return DIFFICULTY_LABELS[difficulty];
+}
+
+export const DIFFICULTY_OPTIONS = (
+  Object.keys(DIFFICULTY_LABELS) as Enums<'ticket_difficulty'>[]
+).map((key) => ({
+  value: key,
+  label: DIFFICULTY_LABELS[key],
+}));
+
 // ─── Classification ─────────────────────────────────────────────────
 
 const CLASSIFICATION_LABELS: Record<Enums<'ticket_classification'>, string> = {

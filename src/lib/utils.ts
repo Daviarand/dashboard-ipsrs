@@ -19,6 +19,11 @@ export function usernameToEmail(username: string): string {
   return `${username}@${LOGIN_EMAIL_DOMAIN}`;
 }
 
+export function loginIdentifierToEmail(identifier: string): string {
+  const normalized = identifier.trim().toLowerCase();
+  return normalized.includes('@') ? normalized : usernameToEmail(normalized);
+}
+
 /**
  * Extract the username portion from an email address.
  *

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { LOGIN_EMAIL_DOMAIN } from '@/lib/constants';
+import { loginIdentifierToEmail } from '@/lib/utils';
 import type { Database } from '@/types/database';
 import { INACTIVITY_TIMEOUT_MS } from '@/lib/constants';
 
@@ -104,22 +104,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchProfile, refreshProfile]);
 
-  const login = async (username: string, password: string): Promise<{ ok: boolean; error?: string }> => {
+  const login = async (usernameOrEmail: string, password: string): Promise<{ ok: boolean; error?: string }> => {
     if (!isSupabaseConfigured) {
       return { ok: false, error: 'Konfigurasi Supabase belum lengkap' };
     }
 
     try {
-      const cleanUsername = username.trim().toLowerCase();
-      const email = `${cleanUsername}@${LOGIN_EMAIL_DOMAIN}`;
+      const email = loginIdentifierToEmail(usernameOrEmail);
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (authError || !authData.user) {
-        return { ok: false, error: 'Username atau kata sandi tidak valid' };
+      if (authError) {
+        console.warn('Supabase sign-in rejected the request:', {
+          code: authError.code,
+          status: authError.status,
+        });
+        if (authError.code === 'email_not_confirmed') {
+          return { ok: false, error: 'Email akun belum dikonfirmasi. Minta admin mengaktifkan konfirmasi akun di Supabase.' };
+        }
+        if (authError.code === 'too_many_requests') {
+          return { ok: false, error: 'Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.' };
+        }
+        if (authError.code === 'invalid_credentials' || authError.status === 400) {
+          return { ok: false, error: 'Email atau kata sandi akun Supabase tidak cocok. Gunakan password yang dibuat untuk akun ini, bukan password Gmail.' };
+        }
+        return { ok: false, error: `Supabase menolak login (kode ${authError.code || authError.status}). Periksa konfigurasi project dan coba lagi.` };
+      }
+      if (!authData.user) {
+        return { ok: false, error: 'Supabase tidak mengembalikan akun setelah login. Coba lagi.' };
       }
 
       const userProfile = await fetchProfile(authData.user.id);

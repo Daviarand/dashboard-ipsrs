@@ -15,6 +15,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { datetimeLocalToUTC, formatDateTimeWIB, utcToDatetimeLocal } from '@/lib/datetime';
 import { previewClassification } from '@/lib/classification';
 import { mapDbError } from '@/lib/error';
+import { DIFFICULTY_OPTIONS, getDifficultyLabel } from '@/lib/labels';
 import { SIGNED_URL_EXPIRY } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
 import type { Database, Json } from '@/types/database';
@@ -60,6 +61,7 @@ export function TicketDetailPage() {
     reportedAt: '',
     damageTypeId: '',
     priority: 'sedang' as Database['public']['Enums']['ticket_priority'],
+    difficulty: null as Database['public']['Enums']['ticket_difficulty'] | null,
     description: '',
   });
 
@@ -185,6 +187,7 @@ export function TicketDetailPage() {
           reported_at: reportedAtUtc,
           damage_type_id: parsed.data.damageTypeId,
           priority: parsed.data.priority,
+          difficulty: parsed.data.difficulty ?? null,
           description: parsed.data.description,
         })
         .eq('id', id)
@@ -365,8 +368,8 @@ export function TicketDetailPage() {
       <div className="flex flex-wrap items-center gap-2"><PriorityBadge priority={ticket.priority} /><StatusBadge status={ticket.status} />{ticket.effective_classification && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{ticket.effective_classification === 'laksana' ? 'Laksana' : 'Gagal Laksana'}</span>}<Link to={`/tiket/${id}/cetak`} className="ml-auto text-sm text-blue-700 hover:underline">Cetak lembar tugas</Link></div>
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
-          <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Informasi tiket</CardTitle>{isAdmin && <Button type="button" variant="outline" size="sm" onClick={() => { setEditForm({ roomId: ticket.room_id, reporterName: ticket.reporter_name, reportedAt: utcToDatetimeLocal(ticket.reported_at), damageTypeId: ticket.damage_type_id, priority: ticket.priority, description: ticket.description }); setIsEditing((current) => !current); }}>Ubah Data</Button>}</CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-            <Info label="Pelapor" value={ticket.reporter_name} /><Info label="Waktu lapor" value={`${formatDateTimeWIB(ticket.reported_at)} WIB`} /><Info label="Jenis kerusakan" value={ticket.damage_type_name} /><Info label="Dibuat" value={`${formatDateTimeWIB(ticket.input_at)} WIB`} />
+          <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-base">Informasi tiket</CardTitle>{isAdmin && <Button type="button" variant="outline" size="sm" onClick={() => { setEditForm({ roomId: ticket.room_id, reporterName: ticket.reporter_name, reportedAt: utcToDatetimeLocal(ticket.reported_at), damageTypeId: ticket.damage_type_id, priority: ticket.priority, difficulty: ticket.difficulty, description: ticket.description }); setIsEditing((current) => !current); }}>Ubah Data</Button>}</CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+            <Info label="Pelapor" value={ticket.reporter_name} /><Info label="Waktu lapor" value={`${formatDateTimeWIB(ticket.reported_at)} WIB`} /><Info label="Jenis kerusakan" value={ticket.damage_type_name} /><Info label="Tingkat kesulitan" value={ticket.difficulty ? getDifficultyLabel(ticket.difficulty) : 'Belum ditentukan'} /><Info label="Dibuat" value={`${formatDateTimeWIB(ticket.input_at)} WIB`} />
             <div className="sm:col-span-2"><Info label="Kendala" value={ticket.description} /></div>
             {ticket.work_done && <div className="sm:col-span-2"><Info label="Tindakan" value={ticket.work_done} /></div>}
           </CardContent></Card>
@@ -377,6 +380,7 @@ export function TicketDetailPage() {
               <label className="space-y-1 text-xs">Waktu lapor (WIB)<Input type="datetime-local" value={editForm.reportedAt} onChange={(event) => setEditForm({ ...editForm, reportedAt: event.target.value })} /></label>
               <label className="space-y-1 text-xs">Jenis kerusakan<Select value={editForm.damageTypeId} onChange={(event) => setEditForm({ ...editForm, damageTypeId: event.target.value })}>{masterQuery.data?.damageTypes.filter((item) => item.is_active || item.id === ticket.damage_type_id).map((item) => <option key={item.id} value={item.id}>{item.name}{item.is_active ? '' : ' (nonaktif)'}</option>)}</Select></label>
               <label className="space-y-1 text-xs">Prioritas<Select value={editForm.priority} onChange={(event) => setEditForm({ ...editForm, priority: event.target.value as Ticket['priority'] })}><option value="urgent">Urgent</option><option value="tinggi">Tinggi</option><option value="sedang">Sedang</option><option value="rendah">Rendah</option></Select></label>
+              <label className="space-y-1 text-xs">Tingkat kesulitan (opsional)<Select value={editForm.difficulty ?? ''} onChange={(event) => setEditForm({ ...editForm, difficulty: event.target.value ? event.target.value as NonNullable<Ticket['difficulty']> : null })}><option value="">Belum ditentukan</option>{DIFFICULTY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></label>
               <label className="space-y-1 text-xs sm:col-span-2">Kendala<Textarea rows={3} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} /></label>
               <div className="flex gap-2 sm:col-span-2"><Button type="submit" isLoading={updateTicket.isPending}>Simpan Perubahan</Button><Button type="button" variant="outline" onClick={() => setIsEditing(false)}>Batal</Button></div>
             </form>
